@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	MODE               string
 	WIZ_API_ENDPOINT   string
 	WIZ_CLIENT_ID      string
 	WIZ_CLIENT_SECRET  string
@@ -22,6 +23,7 @@ func LoadConfig() Config {
 	loadEnv()
 
 	return Config{
+		MODE:               getEnv("MODE", "agent"),
 		WIZ_API_ENDPOINT:   getEnv("WIZ_API_ENDPOINT", ""),
 		WIZ_CLIENT_ID:      getEnv("WIZ_CLIENT_ID", ""),
 		WIZ_CLIENT_SECRET:  getEnv("WIZ_CLIENT_SECRET", ""),
