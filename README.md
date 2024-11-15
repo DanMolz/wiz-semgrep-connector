@@ -25,3 +25,18 @@ SEMGREP_API_TOKEN=your_semgrep_api_token
 SEMGREP_DEPLOYMENT=your_semgrep_deployment
 FETCH_INTERVAL=24
 ```
+
+## Docker
+
+You can also deploy the the connector as a docker container
+
+```bash
+docker run --name wiz-semgrep-connector -d \
+-e WIZ_API_ENDPOINT=https://api.<region>.app.wiz.io/graphql \
+-e WIZ_CLIENT_ID=your_wiz_client_id \
+-e WIZ_CLIENT_SECRET=your_wiz_client_secret \
+-e SEMGREP_API_TOKEN=your_semgrep_api_token \
+-e SEMGREP_DEPLOYMENT=your_semgrep_deployment \
+-e FETCH_INTERVAL=24 \
+danielmoloney/wiz-semgrep-connector:latest
+```
