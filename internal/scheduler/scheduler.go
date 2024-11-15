@@ -37,10 +37,10 @@ func StartScheduler(ctx context.Context, cfg config.Config) {
 	}
 
 	if cfg.MODE == "agent" {
-		log.Println("Running in agent mode, exiting after initial connection.")
+		log.Println("Running in agent mode, exiting after completing findings collection.")
 		return
 	}
-	
+
 	// Start the regular ticker-based scheduler
 	ticker := time.NewTicker(time.Duration(cfg.FETCH_INTERVAL) * time.Hour)
 	defer ticker.Stop()
