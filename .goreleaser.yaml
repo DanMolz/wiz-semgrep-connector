@@ -1,0 +1,72 @@
+project_name: wiz-semgrep-connector
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - main: ./cmd/wiz-semgrep-connector
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 7
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}
+    files:
+      - none*
+
+checksum:
+  name_template: 'checksums.txt'
+
+dockers:
+  - image_templates:
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-amd64
+    use: buildx
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    extra_files:
+    - docker-entrypoint.sh
+
+  - image_templates:
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-arm7
+    use: buildx
+    dockerfile: Dockerfile
+    goarch: arm
+    goarm: 7
+    build_flag_templates:
+      - "--platform=linux/arm/v7"
+    extra_files:
+    - docker-entrypoint.sh
+
+  - image_templates:
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-arm64
+    use: buildx
+    dockerfile: Dockerfile
+    goarch: arm64
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+    extra_files:
+    - docker-entrypoint.sh
+
+docker_manifests:
+  # dockerhub
+  - name_template: danielmoloney/{{.ProjectName}}:v{{ .Version }}
+    image_templates:
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-amd64
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-arm64
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-arm7
+  - name_template: danielmoloney/{{.ProjectName}}:latest
+    image_templates:
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-amd64
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-arm64
+      - danielmoloney/{{.ProjectName}}:v{{ .Version }}-arm7

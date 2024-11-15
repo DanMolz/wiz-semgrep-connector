@@ -1,0 +1,3 @@
+.env
+*.json
+clear_git_history.sh
