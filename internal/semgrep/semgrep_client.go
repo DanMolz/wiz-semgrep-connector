@@ -171,7 +171,7 @@ func TransformFindings(findings SemgrepFindings) (WizFindingsSchema, error) {
 							},
 							ID:                  fmt.Sprint(finding.ID),
 							Name:                strings.Split(finding.Rule.CWE[0], ":")[0],
-							DetailedName:        finding.RuleName,
+							DetailedName:        splitRuleName(finding.RuleName),
 							Severity:            utils.CapitalizeFirstChar(finding.Severity),
 							ExternalFindingLink: finding.LineOfCodeURL,
 							Source:              "Semgrep",
@@ -201,4 +201,11 @@ func getCloudPlatformAndProviderId(finding Finding) (string, string) {
 	}
 
 	return cloudPlatform, providerId
+}
+
+func splitRuleName(input string) string {
+	if lastDotIndex := strings.LastIndex(input, "."); lastDotIndex != -1 {
+		return input[:lastDotIndex]
+	}
+	return input
 }

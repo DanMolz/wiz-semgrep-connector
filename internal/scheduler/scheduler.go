@@ -45,6 +45,8 @@ func StartScheduler(ctx context.Context, cfg config.Config) {
 	ticker := time.NewTicker(time.Duration(cfg.FETCH_INTERVAL) * time.Hour)
 	defer ticker.Stop()
 
+	log.Printf("Collection Interval: %d hours\n", cfg.FETCH_INTERVAL)
+
 	for {
 		select {
 		case <-ticker.C:
