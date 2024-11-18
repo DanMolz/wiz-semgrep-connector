@@ -18,12 +18,14 @@ import (
 const wizFileName = "wiz_findings.json"
 const integrationID = "55c176cc-d155-43a2-98ed-aa56873a1ca1"
 
-func StartScheduler(ctx context.Context, cfg config.Config, wizClient *wiz.WizClient) {
+func StartScheduler(ctx context.Context, cfg config.Config) {
 	// Wait for the random delay before starting the scheduler
 	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
 
-	errChan := make(chan error)
+	// Create a Wiz client
+	wizClient := wiz.NewWizClient(cfg)
 
+	errChan := make(chan error)
 	go func() {
 		errChan <- fetchAndProcessFindings(ctx, cfg, wizClient, "initial")
 	}()

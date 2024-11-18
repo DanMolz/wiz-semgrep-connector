@@ -9,7 +9,6 @@ import (
 
 	"github.com/DanMolz/wiz-semgrep-connector/config"
 	"github.com/DanMolz/wiz-semgrep-connector/internal/scheduler"
-	"github.com/DanMolz/wiz-semgrep-connector/internal/wiz"
 )
 
 func main() {
@@ -30,6 +29,5 @@ func main() {
 		cancel()
 	}()
 
-	wizClient := wiz.NewWizClient(cfg)
-	scheduler.StartScheduler(ctx, cfg, wizClient)
+	scheduler.StartScheduler(ctx, cfg)
 }
