@@ -6,54 +6,33 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/DanMolz/wiz-semgrep-connector/config"
-	"github.com/DanMolz/wiz-semgrep-connector/internal/utils"
 )
 
-const (
-	semgrepAPIURLTemplate = "https://semgrep.dev/api/v1/deployments/%s/findings?issue_type=sast&page_size=3000"
-	integrationID         = "55c176cc-d155-43a2-98ed-aa56873a1ca1"
-)
+const semgrepAPIURLTemplate = "https://semgrep.dev/api/v1/deployments/%s/findings?issue_type=sast&page_size=3000"
 
-type WizFindingsSchema struct {
-	IntegrationID string        `json:"integrationId"`
-	DataSources   []DataSources `json:"dataSources"`
+type SemgrepFindings struct {
+	Findings []Finding `json:"findings"`
 }
 
-type DataSources struct {
-	ID           string   `json:"id"`
-	AnalysisDate string   `json:"analysisDate"`
-	Assets       []Assets `json:"assets"`
-}
-
-type Assets struct {
-	AssetIdentifier             AssetIdentifier               `json:"assetIdentifier"`
-	WebAppVulnerabilityFindings []WebAppVulnerabilityFindings `json:"webAppVulnerabilityFindings"`
-}
-
-type AssetIdentifier struct {
-	CloudPlatform string `json:"cloudPlatform"`
-	ProviderID    string `json:"providerId"`
-}
-
-type WebAppVulnerabilityFindings struct {
-	SastFinding         SastFinding `json:"sastFinding"`
-	ID                  string      `json:"id"`
-	Name                string      `json:"name"`
-	DetailedName        string      `json:"detailedName"`
-	Severity            string      `json:"severity"`
-	ExternalFindingLink string      `json:"externalFindingLink"`
-	Source              string      `json:"source"`
-	Remediation         string      `json:"remediation"`
-	Description         string      `json:"description"`
-}
-
-type SastFinding struct {
-	CommitHash  string `json:"commitHash"`
-	Filename    string `json:"filename"`
-	LineNumbers string `json:"lineNumbers"`
+type Finding struct {
+	ID            int        `json:"id"`
+	Ref           string     `json:"ref"`
+	Repository    Repository `json:"repository"`
+	LineOfCodeURL string     `json:"line_of_code_url"`
+	State         string     `json:"state"`
+	TriageState   string     `json:"triage_state"`
+	Status        string     `json:"status"`
+	Confidence    string     `json:"confidence"`
+	CreatedAt     string     `json:"created_at"`
+	RelevantSince string     `json:"relevant_since"`
+	RuleName      string     `json:"rule_name"`
+	RuleMessage   string     `json:"rule_message"`
+	Location      Location   `json:"location"`
+	Severity      string     `json:"severity"`
+	Categories    []string   `json:"categories"`
+	Rule          Rule       `json:"rule"`
 }
 
 type Repository struct {
@@ -78,29 +57,6 @@ type Rule struct {
 	VulnerabilityClass []string `json:"vulnerability_classes"`
 	CWE                []string `json:"cwe_names"`
 	OWASP              []string `json:"owasp_names"`
-}
-
-type SemgrepFindings struct {
-	Findings []Finding `json:"findings"`
-}
-
-type Finding struct {
-	ID            int        `json:"id"`
-	Ref           string     `json:"ref"`
-	Repository    Repository `json:"repository"`
-	LineOfCodeURL string     `json:"line_of_code_url"`
-	State         string     `json:"state"`
-	TriageState   string     `json:"triage_state"`
-	Status        string     `json:"status"`
-	Confidence    string     `json:"confidence"`
-	CreatedAt     string     `json:"created_at"`
-	RelevantSince string     `json:"relevant_since"`
-	RuleName      string     `json:"rule_name"`
-	RuleMessage   string     `json:"rule_message"`
-	Location      Location   `json:"location"`
-	Severity      string     `json:"severity"`
-	Categories    []string   `json:"categories"`
-	Rule          Rule       `json:"rule"`
 }
 
 func FetchFindings(cfg config.Config) (SemgrepFindings, error) {
@@ -143,69 +99,4 @@ func WriteFindingsToFile(findings interface{}, filePath string) error {
 	}
 
 	return nil
-}
-
-func TransformFindings(findings SemgrepFindings) (WizFindingsSchema, error) {
-	var wizFindings WizFindingsSchema
-	wizFindings.IntegrationID = integrationID
-
-	for _, finding := range findings.Findings {
-		cloudPlatform, providerId := getCloudPlatformAndProviderId(finding)
-		findingDescription := fmt.Sprintf("Rule Confidence: %s. Description: %s", utils.CapitalizeFirstChar(finding.Confidence), finding.Rule.Message)
-
-		wizFindingDataSources := DataSources{
-			ID:           finding.Repository.Name,
-			AnalysisDate: finding.CreatedAt,
-			Assets: []Assets{
-				{
-					AssetIdentifier: AssetIdentifier{
-						CloudPlatform: cloudPlatform,
-						ProviderID:    providerId,
-					},
-					WebAppVulnerabilityFindings: []WebAppVulnerabilityFindings{
-						{
-							SastFinding: SastFinding{
-								CommitHash:  "",
-								Filename:    finding.Location.FilePath,
-								LineNumbers: fmt.Sprintf("%d-%d", finding.Location.Line, finding.Location.Column),
-							},
-							ID:                  fmt.Sprint(finding.ID),
-							Name:                strings.Split(finding.Rule.CWE[0], ":")[0],
-							DetailedName:        splitRuleName(finding.RuleName),
-							Severity:            utils.CapitalizeFirstChar(finding.Severity),
-							ExternalFindingLink: finding.LineOfCodeURL,
-							Source:              "Semgrep",
-							Remediation:         "N/A",
-							Description:         findingDescription,
-						},
-					},
-				},
-			},
-		}
-
-		wizFindings.DataSources = append(wizFindings.DataSources, wizFindingDataSources)
-	}
-
-	return wizFindings, nil
-}
-
-func getCloudPlatformAndProviderId(finding Finding) (string, string) {
-	var cloudPlatform, providerId string
-
-	if strings.Contains(finding.Repository.URL, "github.com") {
-		cloudPlatform = "GitHub"
-		providerId = fmt.Sprintf("github.com##%s##%s", finding.Repository.Name, strings.Split(finding.Ref, "refs/heads/")[1])
-	} else {
-		cloudPlatform = "GitLab"
-		providerId = fmt.Sprintf("gitlab.com##%s##%s", finding.Repository.Name, strings.Split(finding.Ref, "refs/heads/")[1])
-	}
-
-	return cloudPlatform, providerId
-}
-
-func splitRuleName(input string) string {
-	if lastDotIndex := strings.LastIndex(input, "."); lastDotIndex != -1 {
-		return input[:lastDotIndex]
-	}
-	return input
 }

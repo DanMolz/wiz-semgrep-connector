@@ -20,6 +20,45 @@ type accessToken struct {
 	Token string `json:"access_token"`
 }
 
+type WizFindingsSchema struct {
+	IntegrationID string        `json:"integrationId"`
+	DataSources   []DataSources `json:"dataSources"`
+}
+
+type DataSources struct {
+	ID           string   `json:"id"`
+	AnalysisDate string   `json:"analysisDate"`
+	Assets       []Assets `json:"assets"`
+}
+
+type Assets struct {
+	AssetIdentifier             AssetIdentifier               `json:"assetIdentifier"`
+	WebAppVulnerabilityFindings []WebAppVulnerabilityFindings `json:"webAppVulnerabilityFindings"`
+}
+
+type AssetIdentifier struct {
+	CloudPlatform string `json:"cloudPlatform"`
+	ProviderID    string `json:"providerId"`
+}
+
+type WebAppVulnerabilityFindings struct {
+	SastFinding         SastFinding `json:"sastFinding"`
+	ID                  string      `json:"id"`
+	Name                string      `json:"name"`
+	DetailedName        string      `json:"detailedName"`
+	Severity            string      `json:"severity"`
+	ExternalFindingLink string      `json:"externalFindingLink"`
+	Source              string      `json:"source"`
+	Remediation         string      `json:"remediation"`
+	Description         string      `json:"description"`
+}
+
+type SastFinding struct {
+	CommitHash  string `json:"commitHash"`
+	Filename    string `json:"filename"`
+	LineNumbers string `json:"lineNumbers"`
+}
+
 type UploadRequestResponse struct {
 	RequestSecurityScanUpload struct {
 		Upload struct {
@@ -28,6 +67,26 @@ type UploadRequestResponse struct {
 			URL              string `json:"url"`
 		} `json:"upload"`
 	} `json:"requestSecurityScanUpload"`
+}
+
+type WizCloudResources struct {
+	VersionControlResources struct {
+		Nodes []Nodes `json:"nodes"`
+	} `json:"versionControlResources"`
+}
+
+type Nodes struct {
+	ID            string     `json:"id"`
+	CloudPlatform string     `json:"cloudPlatform"`
+	ProviderID    string     `json:"providerID"`
+	Type          string     `json:"type"`
+	Repository    Repository `json:"repository"`
+}
+
+type Repository struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }
 
 var httpClient = &http.Client{}
@@ -115,10 +174,10 @@ func RequestUploadSlot(ctx context.Context, cfg config.Config) (UploadRequestRes
 	return graphqlResponse, nil
 }
 
-func PullRepositories(ctx context.Context, cfg config.Config) error {
+func PullCloudResources(ctx context.Context, cfg config.Config) (WizCloudResources, error) {
 	at, err := wizAuth(ctx, cfg)
 	if err != nil {
-		return err
+		return WizCloudResources{}, err
 	}
 
 	graphqlClient := graphql.NewClient(cfg.WIZ_API_ENDPOINT)
@@ -141,7 +200,7 @@ func PullRepositories(ctx context.Context, cfg config.Config) error {
     `)
 
 	variables := map[string]interface{}{
-		"first": 5,
+		"first": 500,
 		"filterBy": map[string]interface{}{
 			"type": []string{"REPOSITORY_BRANCH"},
 		},
@@ -153,27 +212,82 @@ func PullRepositories(ctx context.Context, cfg config.Config) error {
 
 	graphqlRequest.Header.Set("Authorization", "Bearer "+at.Token)
 
-	var graphqlResponse struct {
-		VersionControlResources struct {
-			Nodes []struct {
-				ID            string `json:"id"`
-				CloudPlatform string `json:"cloudPlatform"`
-				ProviderID    string `json:"providerID"`
-				Type          string `json:"type"`
-				Repository    struct {
-					ID   string `json:"id"`
-					Name string `json:"name"`
-					URL  string `json:"url"`
-				} `json:"repository"`
-			} `json:"nodes"`
-		} `json:"versionControlResources"`
+	var graphqlResponse WizCloudResources
+	if err := graphqlClient.Run(ctx, graphqlRequest, &graphqlResponse); err != nil {
+		return WizCloudResources{}, fmt.Errorf("failed reading response body: %w", err)
 	}
 
-	if err := graphqlClient.Run(ctx, graphqlRequest, &graphqlResponse); err != nil {
-		return fmt.Errorf("failed reading response body: %w", err)
+	return graphqlResponse, nil
+}
+
+func GetEnrichmentStatus(ctx context.Context, cfg config.Config, systemActivityId string) error {
+	at, err := wizAuth(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	graphqlClient := graphql.NewClient(cfg.WIZ_API_ENDPOINT)
+	graphqlRequest := graphql.NewRequest(`
+        query SystemActivity($id: ID!) {
+          systemActivity(id: $id) {
+            id
+            status
+            statusInfo
+            result {
+              ... on SystemActivityEnrichmentIntegrationResult {
+                dataSources {
+                  incoming
+                  handled
+                }
+                findings {
+                  incoming
+                  handled
+                }
+                events {
+                  incoming
+                  handled
+                }
+                tags {
+                  incoming
+                  handled
+                }
+              }
+            }
+            context {
+              ... on SystemActivityEnrichmentIntegrationContext {
+                fileUploadId
+              }
+            }
+          }
+        }
+    `)
+
+	// Prepare the variables
+	variablesJSON := `{
+      "id": "` + systemActivityId + `"
+    }`
+
+	var variables map[string]interface{}
+
+	if err := json.Unmarshal([]byte(variablesJSON), &variables); err != nil {
+		log.Fatalf("Failed parsing JSON body: %v", err)
+	}
+
+	for k, v := range variables {
+		graphqlRequest.Var(k, v)
+	}
+
+	graphqlRequest.Header.Set("Authorization", "Bearer "+at.Token)
+
+	var graphqlResponse interface{}
+
+	if err := graphqlClient.Run(context.Background(), graphqlRequest, &graphqlResponse); err != nil {
+		println(graphqlResponse)
+		log.Fatalf("Failed reading response body: %v", err)
 	}
 
 	fmt.Println(graphqlResponse) // your data is here!
+
 	return nil
 }
 
