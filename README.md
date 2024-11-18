@@ -8,6 +8,7 @@ The Wiz Semgrep Connector is a Go application that integrates with the Semgrep A
 
 The application requires the following environment variables to be set:
 
+- `MODE`: Disable the scheduler.
 - `WIZ_API_ENDPOINT`: The endpoint for the Wiz API.
 - `WIZ_CLIENT_ID`: The client ID for Wiz authentication.
 - `WIZ_CLIENT_SECRET`: The client secret for Wiz authentication.
@@ -18,6 +19,7 @@ The application requires the following environment variables to be set:
 You can set these environment variables in a `.env` file in the root directory of the project:
 
 ```env
+MODE: agent
 WIZ_API_ENDPOINT=https://api.<region>.app.wiz.io/graphql
 WIZ_CLIENT_ID=your_wiz_client_id
 WIZ_CLIENT_SECRET=your_wiz_client_secret
@@ -32,6 +34,7 @@ You can also deploy the the connector as a docker container
 
 ```bash
 docker run --name wiz-semgrep-connector -d \
+-e MODE=agent \
 -e WIZ_API_ENDPOINT=https://api.<region>.app.wiz.io/graphql \
 -e WIZ_CLIENT_ID=your_wiz_client_id \
 -e WIZ_CLIENT_SECRET=your_wiz_client_secret \
