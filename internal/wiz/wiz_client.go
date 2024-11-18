@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/DanMolz/wiz-semgrep-connector/config"
 	"github.com/machinebox/graphql"
@@ -89,52 +89,115 @@ type Repository struct {
 	URL  string `json:"url"`
 }
 
-var httpClient = &http.Client{}
+type WizClient struct {
+	httpClient    *http.Client
+	graphqlClient *graphql.Client
+	cfg           config.Config
+	token         accessToken
+	tokenMutex    sync.Mutex
+}
 
-func wizAuth(ctx context.Context, cfg config.Config) (accessToken, error) {
+type WizUploadStatus struct {
+	SystemActivity struct {
+		ID         string      `json:"id"`
+		Status     string      `json:"status"`
+		StatusInfo interface{} `json:"statusInfo"`
+		Result     struct {
+			DataSources struct {
+				Incoming int `json:"incoming"`
+				Handled  int `json:"handled"`
+			} `json:"dataSources"`
+			Findings struct {
+				Incoming int `json:"incoming"`
+				Handled  int `json:"handled"`
+			} `json:"findings"`
+			Events struct {
+				Incoming int `json:"incoming"`
+				Handled  int `json:"handled"`
+			} `json:"events"`
+			Tags struct {
+				Incoming int `json:"incoming"`
+				Handled  int `json:"handled"`
+			} `json:"tags"`
+			UnresolvedAssets struct {
+				Count int         `json:"count"`
+				Ids   interface{} `json:"ids"`
+			} `json:"unresolvedAssets"`
+		} `json:"result"`
+		Context struct {
+			FileUploadID string `json:"fileUploadId"`
+		} `json:"context"`
+	} `json:"systemActivity"`
+}
+
+func NewWizClient(cfg config.Config) *WizClient {
+	return &WizClient{
+		httpClient:    &http.Client{},
+		graphqlClient: graphql.NewClient(cfg.WIZ_API_ENDPOINT),
+		cfg:           cfg,
+	}
+}
+
+func (c *WizClient) authenticate(ctx context.Context) error {
+	c.tokenMutex.Lock()
+	defer c.tokenMutex.Unlock()
+
+	if c.token.Token != "" && !c.isTokenExpired() {
+		return nil
+	}
+
 	authData := url.Values{}
 	authData.Set("grant_type", "client_credentials")
 	authData.Set("audience", "wiz-api")
-	authData.Set("client_id", cfg.WIZ_CLIENT_ID)
-	authData.Set("client_secret", cfg.WIZ_CLIENT_SECRET)
+	authData.Set("client_id", c.cfg.WIZ_CLIENT_ID)
+	authData.Set("client_secret", c.cfg.WIZ_CLIENT_SECRET)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://auth.app.wiz.io/oauth/token", strings.NewReader(authData.Encode()))
 	if err != nil {
-		return accessToken{}, fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Add("Encoding", "UTF-8")
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return accessToken{}, fmt.Errorf("failed to perform request: %w", err)
+		return fmt.Errorf("failed to perform request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return accessToken{}, fmt.Errorf("error authenticating: %d", resp.StatusCode)
+		return fmt.Errorf("error authenticating: %d", resp.StatusCode)
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return accessToken{}, fmt.Errorf("failed reading response body: %w", err)
+		return fmt.Errorf("failed reading response body: %w", err)
 	}
 
 	var at accessToken
 	if err := json.Unmarshal(bodyBytes, &at); err != nil {
-		return accessToken{}, fmt.Errorf("failed parsing JSON body: %w", err)
+		return fmt.Errorf("failed parsing JSON body: %w", err)
 	}
 
-	return at, nil
+	c.token = at
+	return nil
 }
 
-func RequestUploadSlot(ctx context.Context, cfg config.Config) (UploadRequestResponse, error) {
-	at, err := wizAuth(ctx, cfg)
-	if err != nil {
-		return UploadRequestResponse{}, err
+func (c *WizClient) isTokenExpired() bool {
+	// Implement token expiration check if needed
+	return false
+}
+
+func (c *WizClient) doGraphQLRequest(ctx context.Context, req *graphql.Request, resp interface{}) error {
+	if err := c.authenticate(ctx); err != nil {
+		return err
 	}
 
-	graphqlClient := graphql.NewClient(cfg.WIZ_API_ENDPOINT)
+	req.Header.Set("Authorization", "Bearer "+c.token.Token)
+	return c.graphqlClient.Run(ctx, req, resp)
+}
+
+func (c *WizClient) RequestUploadSlot(ctx context.Context) (UploadRequestResponse, error) {
 	graphqlRequest := graphql.NewRequest(`
         query RequestSecurityScanUpload($filename: String!) {
           requestSecurityScanUpload(filename: $filename) {
@@ -155,32 +218,15 @@ func RequestUploadSlot(ctx context.Context, cfg config.Config) (UploadRequestRes
 		graphqlRequest.Var(k, v)
 	}
 
-	graphqlRequest.Header.Set("Authorization", "Bearer "+at.Token)
-
-	var graphqlResponse struct {
-		RequestSecurityScanUpload struct {
-			Upload struct {
-				ID               string `json:"id"`
-				SystemActivityID string `json:"systemActivityId"`
-				URL              string `json:"url"`
-			} `json:"upload"`
-		} `json:"requestSecurityScanUpload"`
-	}
-
-	if err := graphqlClient.Run(ctx, graphqlRequest, &graphqlResponse); err != nil {
+	var graphqlResponse UploadRequestResponse
+	if err := c.doGraphQLRequest(ctx, graphqlRequest, &graphqlResponse); err != nil {
 		return UploadRequestResponse{}, fmt.Errorf("failed reading response body: %w", err)
 	}
 
 	return graphqlResponse, nil
 }
 
-func PullCloudResources(ctx context.Context, cfg config.Config) (WizCloudResources, error) {
-	at, err := wizAuth(ctx, cfg)
-	if err != nil {
-		return WizCloudResources{}, err
-	}
-
-	graphqlClient := graphql.NewClient(cfg.WIZ_API_ENDPOINT)
+func (c *WizClient) PullCloudResources(ctx context.Context) (WizCloudResources, error) {
 	graphqlRequest := graphql.NewRequest(`
         query VersionControlResources($first: Int, $after: String, $filterBy: VersionControlResourceFilters) {
           versionControlResources(first: $first, after: $after, filterBy: $filterBy) {
@@ -210,88 +256,76 @@ func PullCloudResources(ctx context.Context, cfg config.Config) (WizCloudResourc
 		graphqlRequest.Var(k, v)
 	}
 
-	graphqlRequest.Header.Set("Authorization", "Bearer "+at.Token)
-
 	var graphqlResponse WizCloudResources
-	if err := graphqlClient.Run(ctx, graphqlRequest, &graphqlResponse); err != nil {
+	if err := c.doGraphQLRequest(ctx, graphqlRequest, &graphqlResponse); err != nil {
 		return WizCloudResources{}, fmt.Errorf("failed reading response body: %w", err)
 	}
 
 	return graphqlResponse, nil
 }
 
-func GetEnrichmentStatus(ctx context.Context, cfg config.Config, systemActivityId string) error {
-	at, err := wizAuth(ctx, cfg)
-	if err != nil {
-		return err
-	}
-
-	graphqlClient := graphql.NewClient(cfg.WIZ_API_ENDPOINT)
+func (c *WizClient) GetEnrichmentStatus(ctx context.Context, systemActivityId string) (WizUploadStatus, error) {
 	graphqlRequest := graphql.NewRequest(`
         query SystemActivity($id: ID!) {
-          systemActivity(id: $id) {
-            id
-            status
-            statusInfo
-            result {
-              ... on SystemActivityEnrichmentIntegrationResult {
-                dataSources {
-                  incoming
-                  handled
-                }
-                findings {
-                  incoming
-                  handled
-                }
-                events {
-                  incoming
-                  handled
-                }
-                tags {
-                  incoming
-                  handled
-                }
-              }
-            }
-            context {
-              ... on SystemActivityEnrichmentIntegrationContext {
-                fileUploadId
-              }
-            }
+        	systemActivity(id: $id) {
+        		id
+        		status
+        		statusInfo
+        		result {
+        		  ...on SystemActivityEnrichmentIntegrationResult{
+        			dataSources {
+        			  ... IngestionStatsDetails
+        			}
+        			findings {
+        			  ... IngestionStatsDetails
+        			}
+        			events {
+        			  ... IngestionStatsDetails
+        			}
+        			tags {
+        			  ... IngestionStatsDetails
+        			}
+        			unresolvedAssets {
+        			  ... UnresolvedAssetsDetails
+        			}
+        		  }
+        		}
+        		context {
+        		  ... on SystemActivityEnrichmentIntegrationContext{
+        			fileUploadId
+        		  }
+        		}
+        	}
           }
+
+        fragment IngestionStatsDetails on EnrichmentIntegrationStats {
+        	incoming
+        	handled
+        }
+
+        fragment UnresolvedAssetsDetails on EnrichmentIntegrationUnresolvedAssets {
+        	count
+        	ids
         }
     `)
 
-	// Prepare the variables
-	variablesJSON := `{
-      "id": "` + systemActivityId + `"
-    }`
-
-	var variables map[string]interface{}
-
-	if err := json.Unmarshal([]byte(variablesJSON), &variables); err != nil {
-		log.Fatalf("Failed parsing JSON body: %v", err)
+	variables := map[string]interface{}{
+		"id": systemActivityId,
 	}
 
 	for k, v := range variables {
 		graphqlRequest.Var(k, v)
 	}
 
-	graphqlRequest.Header.Set("Authorization", "Bearer "+at.Token)
-
-	var graphqlResponse interface{}
-
-	if err := graphqlClient.Run(context.Background(), graphqlRequest, &graphqlResponse); err != nil {
-		println(graphqlResponse)
-		log.Fatalf("Failed reading response body: %v", err)
+	var graphqlResponse WizUploadStatus
+	if err := c.doGraphQLRequest(ctx, graphqlRequest, &graphqlResponse); err != nil {
+		return WizUploadStatus{}, fmt.Errorf("failed reading response body: %w", err)
 	}
 
-	fmt.Println(graphqlResponse) // your data is here!
-
-	return nil
+	return graphqlResponse, nil
 }
 
-func S3BucketUpload(ctx context.Context, presignedURL string, filePath string) error {
+func (c *WizClient) S3BucketUpload(ctx context.Context, presignedURL string, filePath string) error {
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", filePath, err)
@@ -302,7 +336,7 @@ func S3BucketUpload(ctx context.Context, presignedURL string, filePath string) e
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to upload file: %w", err)
 	}
@@ -312,6 +346,5 @@ func S3BucketUpload(ctx context.Context, presignedURL string, filePath string) e
 		return fmt.Errorf("failed to upload file: %s", resp.Status)
 	}
 
-	log.Println("File uploaded successfully!")
 	return nil
 }

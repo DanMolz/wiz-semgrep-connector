@@ -18,14 +18,14 @@ import (
 const wizFileName = "wiz_findings.json"
 const integrationID = "55c176cc-d155-43a2-98ed-aa56873a1ca1"
 
-func StartScheduler(ctx context.Context, cfg config.Config) {
+func StartScheduler(ctx context.Context, cfg config.Config, wizClient *wiz.WizClient) {
 	// Wait for the random delay before starting the scheduler
 	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
 
 	errChan := make(chan error)
 
 	go func() {
-		errChan <- fetchAndProcessFindings(ctx, cfg, "initial")
+		errChan <- fetchAndProcessFindings(ctx, cfg, wizClient, "initial")
 	}()
 
 	select {
@@ -53,7 +53,7 @@ func StartScheduler(ctx context.Context, cfg config.Config) {
 		select {
 		case <-ticker.C:
 			go func() {
-				errChan <- fetchAndProcessFindings(ctx, cfg, "scheduled")
+				errChan <- fetchAndProcessFindings(ctx, cfg, wizClient, "scheduled")
 			}()
 		case err := <-errChan:
 			if err != nil {
@@ -66,17 +66,17 @@ func StartScheduler(ctx context.Context, cfg config.Config) {
 	}
 }
 
-func fetchAndProcessFindings(ctx context.Context, cfg config.Config, phase string) error {
+func fetchAndProcessFindings(ctx context.Context, cfg config.Config, wizClient *wiz.WizClient, phase string) error {
 	log.Printf("Fetching findings from Semgrep (%s)...", phase)
-	if err := runFindingsCollection(ctx, cfg); err != nil {
+	if err := runFindingsCollection(ctx, cfg, wizClient); err != nil {
 		return fmt.Errorf("error fetching findings: %w", err)
 	}
 	return nil
 }
 
-func runFindingsCollection(ctx context.Context, cfg config.Config) error {
+func runFindingsCollection(ctx context.Context, cfg config.Config, wizClient *wiz.WizClient) error {
 	// Fetch the cloud resources from Wiz
-	wizCloudResources, err := wiz.PullCloudResources(ctx, cfg)
+	wizCloudResources, err := wizClient.PullCloudResources(ctx)
 	if err != nil {
 		return logAndReturnError("Error fetching Wiz repositories", err)
 	}
@@ -116,7 +116,7 @@ func runFindingsCollection(ctx context.Context, cfg config.Config) error {
 	log.Println("WiZ Findings written to file successfully")
 
 	// Request an upload slot from the Wiz API
-	resp, err := wiz.RequestUploadSlot(ctx, cfg)
+	resp, err := wizClient.RequestUploadSlot(ctx)
 	if err != nil {
 		return logAndReturnError("Error requesting upload slot", err)
 	}
@@ -132,9 +132,23 @@ func runFindingsCollection(ctx context.Context, cfg config.Config) error {
 	}
 
 	// Upload the JSON file to the Wiz API
-	if err := wiz.S3BucketUpload(ctx, resp.RequestSecurityScanUpload.Upload.URL, wizFileName); err != nil {
+	if err := wizClient.S3BucketUpload(ctx, resp.RequestSecurityScanUpload.Upload.URL, wizFileName); err != nil {
 		return logAndReturnError("Error uploading file to S3", err)
 	}
+
+	// Check the status of the enrichment
+	uploadStatus := wiz.WizUploadStatus{}
+	for {
+		time.Sleep(5 * time.Second)
+		uploadStatus, err = wizClient.GetEnrichmentStatus(ctx, resp.RequestSecurityScanUpload.Upload.SystemActivityID)
+		if err != nil {
+			return logAndReturnError("Error getting upload status", err)
+		}
+		if uploadStatus.SystemActivity.Status != "IN_PROGRESS" {
+			break
+		}
+	}
+	log.Printf("Upload Status: %v\n", uploadStatus.SystemActivity.Status)
 
 	return nil
 }
