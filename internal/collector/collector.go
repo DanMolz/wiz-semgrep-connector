@@ -1,4 +1,4 @@
-package scheduler
+package collector
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 const wizFileName = "wiz_findings.json"
 const integrationID = "55c176cc-d155-43a2-98ed-aa56873a1ca1"
 
-func StartScheduler(ctx context.Context, cfg config.Config) {
-	// Wait for the random delay before starting the scheduler
+func StartCollector(ctx context.Context, cfg config.Config) {
+	// Wait for the random delay before starting the collector
 	time.Sleep(time.Duration(rand.Intn(30)) * time.Second)
 
 	// Create a Wiz client
@@ -45,7 +45,7 @@ func StartScheduler(ctx context.Context, cfg config.Config) {
 		return
 	}
 
-	// Start the regular ticker-based scheduler
+	// Start the regular ticker-based collector
 	ticker := time.NewTicker(time.Duration(cfg.FETCH_INTERVAL) * time.Hour)
 	defer ticker.Stop()
 

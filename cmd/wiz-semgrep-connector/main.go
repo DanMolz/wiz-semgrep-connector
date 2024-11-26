@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/DanMolz/wiz-semgrep-connector/config"
-	"github.com/DanMolz/wiz-semgrep-connector/internal/scheduler"
+	"github.com/DanMolz/wiz-semgrep-connector/internal/collector"
 )
 
 func main() {
@@ -29,5 +29,5 @@ func main() {
 		cancel()
 	}()
 
-	scheduler.StartScheduler(ctx, cfg)
+	 collector.StartCollector(ctx, cfg)
 }
