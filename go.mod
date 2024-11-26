@@ -7,4 +7,7 @@ require (
 	github.com/machinebox/graphql v0.2.2
 )
 
-require github.com/pkg/errors v0.9.1 // indirect
+require (
+	github.com/pkg/errors v0.9.1 // indirect
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
+)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -347,4 +348,28 @@ func (c *WizClient) S3BucketUpload(ctx context.Context, presignedURL string, fil
 	}
 
 	return nil
+}
+
+func ReadWizCloudResources(fileName string) (WizCloudResources, error) {
+	var resources WizCloudResources
+
+	// Open the file
+	file, err := os.Open(fileName)
+	if err != nil {
+		return resources, fmt.Errorf("unable to open file %s: %w", fileName, err)
+	}
+	defer file.Close()
+
+	// Read the file content
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return resources, fmt.Errorf("unable to read file %s: %w", fileName, err)
+	}
+
+	// Unmarshal JSON content into struct
+	if err := json.Unmarshal(data, &resources); err != nil {
+		return resources, fmt.Errorf("unable to unmarshal JSON for Wiz Cloud Resources: %w", err)
+	}
+
+	return resources, nil
 }

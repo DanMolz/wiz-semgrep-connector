@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -88,15 +89,39 @@ func FetchFindings(cfg config.Config) (SemgrepFindings, error) {
 	return findingsResponse, nil
 }
 
-func WriteFindingsToFile(findings interface{}, filePath string) error {
-	data, err := json.MarshalIndent(findings, "", "  ")
+// func WriteFindingsToFile(findings interface{}, filePath string) error {
+// 	data, err := json.MarshalIndent(findings, "", "  ")
+// 	if err != nil {
+// 		return fmt.Errorf("marshaling findings: %w", err)
+// 	}
+
+// 	if err := os.WriteFile(filePath, data, 0644); err != nil {
+// 		return fmt.Errorf("writing file: %w", err)
+// 	}
+
+// 	return nil
+// }
+
+func ReadSemgrepFindings(fileName string) (SemgrepFindings, error) {
+	var findings SemgrepFindings
+
+	// Open the file
+	file, err := os.Open(fileName)
 	if err != nil {
-		return fmt.Errorf("marshaling findings: %w", err)
+		return findings, fmt.Errorf("unable to open file %s: %w", fileName, err)
+	}
+	defer file.Close()
+
+	// Read the file content
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return findings, fmt.Errorf("unable to read file %s: %w", fileName, err)
 	}
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		return fmt.Errorf("writing file: %w", err)
+	// Unmarshal JSON content into struct
+	if err := json.Unmarshal(data, &findings); err != nil {
+		return findings, fmt.Errorf("unable to unmarshal JSON for Semgrep Findings: %w", err)
 	}
 
-	return nil
+	return findings, nil
 }

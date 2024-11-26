@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
+
+	"golang.org/x/exp/rand"
 )
 
 // CapitalizeFirstChar capitalizes the first character of a string
@@ -26,4 +29,8 @@ func WriteToFile(input interface{}, filePath string) error {
 	}
 
 	return nil
+}
+
+func RandomDelay(maxSeconds int) {
+	time.Sleep(time.Duration(rand.Intn(maxSeconds)) * time.Second)
 }
