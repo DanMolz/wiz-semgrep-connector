@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -54,27 +55,50 @@ func StartCollector(ctx context.Context, cfg config.Config) {
 	wizClient := wiz.NewWizClient(cfg)
 	errChan := make(chan error)
 
-	go collectFindings(ctx, cfg, wizClient, "initial", errChan)
+	mode := os.Getenv("MODE")
+	if mode == "" {
+		mode = cfg.MODE
+	}
+
+	log.Printf("Starting collector in %s mode", mode)
+
+	if strings.ToLower(mode) == "agent" {
+		// Run once in agent mode
+		log.Println("Running in agent mode. Starting a single findings collection...")
+		collectFindingsOnce(ctx, cfg, wizClient, errChan)
+	} else {
+		// Run on a schedule
+		log.Println("Running in schedule mode. Starting periodic findings collection...")
+		collectFindingsPeriodically(ctx, cfg, wizClient, errChan)
+	}
+}
+
+func collectFindingsOnce(ctx context.Context, cfg config.Config, wizClient *wiz.WizClient, errChan chan error) {
+	go func() {
+		defer close(errChan) // Close the channel to signal completion
+		collectFindings(ctx, cfg, wizClient, "initial", errChan)
+	}()
 
 	select {
 	case err := <-errChan:
 		if err != nil {
-			log.Fatalf("Error during initial findings collection: %v\n", err)
+			log.Fatalf("Error during findings collection: %v\n", err)
 		}
 	case <-ctx.Done():
-		log.Println("Scheduler stopped")
-		return
+		log.Println("Process interrupted")
 	}
+	log.Println("Findings collection completed. Exiting.")
+}
 
-	if cfg.MODE == "agent" {
-		log.Println("Running in agent mode. Exiting.")
-		return
-	}
-
+func collectFindingsPeriodically(ctx context.Context, cfg config.Config, wizClient *wiz.WizClient, errChan chan error) {
+	// Run once immediately
+	log.Println("Running initial collection in scheduled mode...")
+	collectFindings(ctx, cfg, wizClient, "initial", errChan)
+	
 	ticker := time.NewTicker(time.Duration(cfg.FETCH_INTERVAL) * time.Hour)
 	defer ticker.Stop()
 
-	log.Printf("Collection Interval: %d hours\n", cfg.FETCH_INTERVAL)
+	log.Printf("Collection interval set to %d hours", cfg.FETCH_INTERVAL)
 
 	for {
 		select {

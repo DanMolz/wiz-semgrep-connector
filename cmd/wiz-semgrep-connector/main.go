@@ -15,6 +15,7 @@ func main() {
 	cfg := config.LoadConfig()
 
 	log.Println("Starting Wiz Semgrep Collector...")
+	log.Printf("Mode: %s\n", cfg.MODE)
 
 	// Create a context that is canceled on interrupt or termination signal
 	ctx, cancel := context.WithCancel(context.Background())
