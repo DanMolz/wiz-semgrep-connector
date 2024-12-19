@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/DanMolz/wiz-semgrep-connector/config"
 )
 
-const semgrepAPIURLTemplate = "https://semgrep.dev/api/v1/deployments/%s/findings?issue_type=sast&page_size=3000"
+const semgrepAPIURL = "https://semgrep.dev/api/v1/deployments/%s/findings?issue_type=sast&page=%s"
 
 type SemgrepFindings struct {
 	Findings []Finding `json:"findings"`
@@ -60,47 +62,51 @@ type Rule struct {
 	OWASP              []string `json:"owasp_names"`
 }
 
-func FetchFindings(cfg config.Config) (SemgrepFindings, error) {
+func FetchAllFindings(cfg config.Config) (SemgrepFindings, error) {
 	client := &http.Client{}
-	semgrepURL := fmt.Sprintf(semgrepAPIURLTemplate, cfg.SEMGREP_DEPLOYMENT)
-	req, err := http.NewRequest("GET", semgrepURL, nil)
-	if err != nil {
-		return SemgrepFindings{}, fmt.Errorf("creating request: %w", err)
+	var allFindings SemgrepFindings
+	page := 0
+
+	for {
+		// Construct the paginated URL
+		semgrepURL := fmt.Sprintf(semgrepAPIURL, cfg.SEMGREP_DEPLOYMENT, strconv.Itoa(page))
+		req, err := http.NewRequest("GET", semgrepURL, nil)
+		if err != nil {
+			return SemgrepFindings{}, fmt.Errorf("creating request: %w", err)
+		}
+
+		req.Header.Add("Authorization", "Bearer "+cfg.SEMGREP_API_TOKEN)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return SemgrepFindings{}, fmt.Errorf("performing request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return SemgrepFindings{}, fmt.Errorf("failed to fetch findings: %s", string(body))
+		}
+
+		var pageFindings SemgrepFindings
+		if err := json.NewDecoder(resp.Body).Decode(&pageFindings); err != nil {
+			return SemgrepFindings{}, fmt.Errorf("decoding response: %w", err)
+		}
+		log.Printf("Fetched %d findings from URL %s", len(pageFindings.Findings), semgrepURL)
+
+		// Append findings from the current page to the main struct
+		allFindings.Findings = append(allFindings.Findings, pageFindings.Findings...)
+
+		// Check if there are more pages
+		if len(pageFindings.Findings) < 100 {
+			break
+		}
+
+		page++
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.SEMGREP_API_TOKEN)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return SemgrepFindings{}, fmt.Errorf("performing request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return SemgrepFindings{}, fmt.Errorf("failed to fetch findings: %s", string(body))
-	}
-
-	var findingsResponse SemgrepFindings
-	if err := json.NewDecoder(resp.Body).Decode(&findingsResponse); err != nil {
-		return SemgrepFindings{}, fmt.Errorf("decoding response: %w", err)
-	}
-
-	return findingsResponse, nil
+	return allFindings, nil
 }
-
-// func WriteFindingsToFile(findings interface{}, filePath string) error {
-// 	data, err := json.MarshalIndent(findings, "", "  ")
-// 	if err != nil {
-// 		return fmt.Errorf("marshaling findings: %w", err)
-// 	}
-
-// 	if err := os.WriteFile(filePath, data, 0644); err != nil {
-// 		return fmt.Errorf("writing file: %w", err)
-// 	}
-
-// 	return nil
-// }
 
 func ReadSemgrepFindings(fileName string) (SemgrepFindings, error) {
 	var findings SemgrepFindings

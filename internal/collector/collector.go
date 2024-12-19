@@ -94,7 +94,7 @@ func collectFindingsPeriodically(ctx context.Context, cfg config.Config, wizClie
 	// Run once immediately
 	log.Println("Running initial collection in scheduled mode...")
 	collectFindings(ctx, cfg, wizClient, "initial", errChan)
-	
+
 	ticker := time.NewTicker(time.Duration(cfg.FETCH_INTERVAL) * time.Hour)
 	defer ticker.Stop()
 
@@ -184,7 +184,7 @@ func fetchCloudResources(ctx context.Context, wizClient *wiz.WizClient, errChan 
 
 func fetchSemgrepFindings(cfg config.Config, errChan chan<- error, wg *sync.WaitGroup) {
 	defer wg.Done()
-	findings, err := semgrep.FetchFindings(cfg)
+	findings, err := semgrep.FetchAllFindings(cfg)
 	if err != nil {
 		errChan <- logAndWrapError("fetching Semgrep Findings", err)
 		return
