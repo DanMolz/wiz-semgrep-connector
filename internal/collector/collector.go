@@ -277,7 +277,8 @@ func buildDataSource(cloudPlatform, providerID string, finding semgrep.Finding) 
 							LineNumbers: fmt.Sprintf("%d-%d", finding.Location.Line, finding.Location.Column),
 						},
 						ID:                  fmt.Sprint(finding.ID),
-						Name:                splitRuleName(finding.RuleName),
+						Name:                splitCWEName(finding.Rule.CWE[0]),
+						DetailedName:        splitRuleName(finding.Rule.Name),
 						Severity:            utils.CapitalizeFirstChar(finding.Severity),
 						ExternalFindingLink: finding.LineOfCodeURL,
 						Source:              "Semgrep",
@@ -297,10 +298,25 @@ func getCloudPlatformAndProviderId(finding semgrep.Finding) (string, string) {
 	return "GitLab", fmt.Sprintf("gitlab.com##%s##%s", finding.Repository.Name, strings.Split(finding.Ref, "refs/heads/")[1])
 }
 
-func splitRuleName(input string) string {
-	if lastDotIndex := strings.LastIndex(input, "."); lastDotIndex != -1 {
-		return input[:lastDotIndex]
+func splitCWEName(input string) string {
+	// Find the last occurrence of a colon (:)
+	if lastColonIndex := strings.LastIndex(input, ":"); lastColonIndex != -1 {
+		// Return the substring before the last colon
+		result := input[:lastColonIndex]
+		return result
 	}
+	// If no colon is found, return the whole input
+	return input
+}
+
+func splitRuleName(input string) string {
+	// Find the last occurrence of a dot (.)
+	if lastDotIndex := strings.LastIndex(input, "."); lastDotIndex != -1 {
+		// Return the substring after the last dot
+		result := input[lastDotIndex+1:]
+		return result
+	}
+	// If no dot is found, return the whole input
 	return input
 }
 
