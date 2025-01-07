@@ -158,7 +158,7 @@ func runFindingsCollection(ctx context.Context, cfg config.Config, wizClient *wi
 		return logAndWrapError("reading Semgrep Findings", err)
 	}
 
-	wizFindings, err := transformFindings(wizCloudResources, semgrepFindings)
+	wizFindings, err := transformFindings(cfg, wizCloudResources, semgrepFindings)
 	if err != nil {
 		return logAndWrapError("transforming findings", err)
 	}
@@ -194,7 +194,7 @@ func fetchSemgrepFindings(cfg config.Config, errChan chan<- error, wg *sync.Wait
 	}
 }
 
-func transformFindings(wizCloudResources wiz.WizCloudResources, semgrepFindings semgrep.SemgrepFindings) (wiz.WizFindingsSchema, error) {
+func transformFindings(cfg config.Config, wizCloudResources wiz.WizCloudResources, semgrepFindings semgrep.SemgrepFindings) (wiz.WizFindingsSchema, error) {
 	var wizFindings wiz.WizFindingsSchema
 	wizFindings.IntegrationID = integrationID
 
@@ -220,7 +220,7 @@ func transformFindings(wizCloudResources wiz.WizCloudResources, semgrepFindings 
 			continue
 		}
 
-		dataSource := buildDataSource(cloudPlatform, providerID, finding)
+		dataSource := buildDataSource(cfg, cloudPlatform, providerID, finding)
 		wizFindings.DataSources = append(wizFindings.DataSources, dataSource)
 	}
 
@@ -259,7 +259,7 @@ func monitorUploadStatus(ctx context.Context, wizClient *wiz.WizClient, activity
 	}
 }
 
-func buildDataSource(cloudPlatform, providerID string, finding semgrep.Finding) wiz.DataSources {
+func buildDataSource(cfg config.Config, cloudPlatform, providerID string, finding semgrep.Finding) wiz.DataSources {
 	return wiz.DataSources{
 		ID:           finding.Repository.Name,
 		AnalysisDate: finding.CreatedAt,
@@ -280,15 +280,23 @@ func buildDataSource(cloudPlatform, providerID string, finding semgrep.Finding) 
 						Name:                splitCWEName(finding.Rule.CWE[0]),
 						DetailedName:        splitRuleName(finding.Rule.Name),
 						Severity:            utils.CapitalizeFirstChar(finding.Severity),
-						ExternalFindingLink: finding.LineOfCodeURL,
+						ExternalFindingLink: generateSemgrepFindingURL(cfg, finding),
 						Source:              "Semgrep",
-						Remediation:         "N/A",
-						Description:         fmt.Sprintf("Rule Confidence: %s. Description: %s", utils.CapitalizeFirstChar(finding.Confidence), finding.Rule.Message),
+						Remediation:         fmt.Sprintf("Source Code Remediation: %s", finding.LineOfCodeURL),
+						Description: fmt.Sprintf("[Line Of Code](%s)\r\n\r\nRule Confidence: %s\r\n\r\nDescription: %s",
+							finding.LineOfCodeURL,
+							utils.CapitalizeFirstChar(finding.Confidence),
+							finding.Rule.Message,
+						),
 					},
 				},
 			},
 		},
 	}
+}
+
+func generateSemgrepFindingURL(config config.Config, finding semgrep.Finding) string {
+	return fmt.Sprintf("https://semgrep.dev/orgs/%s/findings/%s", config.SEMGREP_DEPLOYMENT, fmt.Sprint(finding.ID))
 }
 
 func getCloudPlatformAndProviderId(finding semgrep.Finding) (string, string) {
