@@ -307,10 +307,10 @@ func getCloudPlatformAndProviderId(finding semgrep.Finding) (string, string) {
 }
 
 func splitCWEName(input string) string {
-	// Find the last occurrence of a colon (:)
-	if lastColonIndex := strings.LastIndex(input, ":"); lastColonIndex != -1 {
-		// Return the substring before the last colon
-		result := input[:lastColonIndex]
+	// Find the first occurrence of a colon (:)
+	if firstColonIndex := strings.Index(input, ":"); firstColonIndex != -1 {
+		// Return the substring before the first colon
+		result := input[:firstColonIndex]
 		return result
 	}
 	// If no colon is found, return the whole input
