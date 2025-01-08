@@ -1,3 +1,5 @@
+name: Semgrep Collector for Wiz
+
 on:
   workflow_dispatch: {}
   pull_request: {}
@@ -8,11 +10,11 @@ on:
   schedule:
   # random HH:MM to avoid a load spike on GitHub Actions at 00:00
   - cron: 19 20 * * *
-name: Semgrep Collector for Wiz
+
 jobs:
   collector:
-    name: collector
     runs-on: ubuntu-latest
+
     env:
       MODE: agent
       WIZ_API_ENDPOINT: https://api.us36.app.wiz.io/graphql
@@ -21,5 +23,9 @@ jobs:
       SEMGREP_API_TOKEN: ${{ secrets.SEMGREP_API_TOKEN }}
       SEMGREP_DEPLOYMENT: danmolz
       TARGET_REPO: DanMolz/wiz-code-gha-demo
+
     container:
       image: danielmoloney/wiz-semgrep-connector
+
+    steps:
+    - run: echo "Running Wiz Semgrep Connector"
