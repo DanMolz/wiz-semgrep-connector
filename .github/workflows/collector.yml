@@ -12,7 +12,7 @@ name: Semgrep Collector for Wiz
 jobs:
   collector:
     name: collector
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     env:
       MODE: agent
       WIZ_API_ENDPOINT: https://api.us36.app.wiz.io/graphql
@@ -23,5 +23,3 @@ jobs:
       TARGET_REPO: DanMolz/wiz-code-gha-demo
     container:
       image: danielmoloney/wiz-semgrep-connector
-    steps:
-    - uses: actions/checkout@v4
