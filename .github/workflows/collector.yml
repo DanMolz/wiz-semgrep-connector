@@ -24,8 +24,10 @@ jobs:
       SEMGREP_DEPLOYMENT: danmolz
       TARGET_REPO: DanMolz/wiz-code-gha-demo
 
-    container:
-      image: danielmoloney/wiz-semgrep-connector
-
     steps:
-    - run: echo "Running Wiz Semgrep Connector"
+      - name: Run Docker Container
+        run: |
+          docker run --rm danielmoloney/wiz-semgrep-connector:latest > output.log
+      - name: Display Logs
+        run: |
+          cat output.log

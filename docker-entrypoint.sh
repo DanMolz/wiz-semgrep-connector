@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 YELLOW="\e[0;93m"
 NC="\e[0m"
@@ -9,4 +9,5 @@ export DISPLAY=:0.0
 
 echo -e "$YELLOW\n\n Launching Startup Script Completed.$NC"
 
-./wiz-semgrep-connector
+# Run the main application
+./wiz-semgrep-connector | tee /proc/1/fd/1
