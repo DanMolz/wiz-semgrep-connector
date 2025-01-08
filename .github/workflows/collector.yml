@@ -13,8 +13,7 @@ on:
 
 jobs:
   collector:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-20.04
     env:
       MODE: agent
       WIZ_API_ENDPOINT: https://api.us36.app.wiz.io/graphql
@@ -23,11 +22,9 @@ jobs:
       SEMGREP_API_TOKEN: ${{ secrets.SEMGREP_API_TOKEN }}
       SEMGREP_DEPLOYMENT: danmolz
       TARGET_REPO: DanMolz/wiz-code-gha-demo
-
+    container:
+      image: danielmoloney/wiz-semgrep-connector
     steps:
       - name: Run Docker Container
-        run: |
-          docker run --rm danielmoloney/wiz-semgrep-connector:latest > output.log
-      - name: Display Logs
         run: |
           cat output.log

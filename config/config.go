@@ -23,7 +23,7 @@ func LoadConfig() Config {
 	loadEnv()
 
 	return Config{
-		MODE:               getEnv("MODE", "agent"),
+		MODE:               getEnv("MODE", ""),
 		WIZ_API_ENDPOINT:   getEnv("WIZ_API_ENDPOINT", ""),
 		WIZ_CLIENT_ID:      getEnv("WIZ_CLIENT_ID", ""),
 		WIZ_CLIENT_SECRET:  getEnv("WIZ_CLIENT_SECRET", ""),
