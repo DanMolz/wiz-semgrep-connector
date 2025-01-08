@@ -15,11 +15,12 @@ jobs:
     runs-on: ubuntu-20.04
     env:
       MODE: agent
-      WIZ_API_ENDPOINT: https://api.<region>.app.wiz.io/graphql
+      WIZ_API_ENDPOINT: https://api.us36.app.wiz.io/graphql
       WIZ_CLIENT_ID: ${{ secrets.WIZ_CLIENT_ID }}
       WIZ_CLIENT_SECRET: ${{ secrets.WIZ_CLIENT_SECRET }}
       SEMGREP_API_TOKEN: ${{ secrets.SEMGREP_API_TOKEN }}
-      SEMGREP_DEPLOYMENT: your_semgrep_deployment
+      SEMGREP_DEPLOYMENT: danmolz
+      TARGET_REPO: DanMolz/wiz-code-gha-demo
     container:
       image: danielmoloney/wiz-semgrep-connector
     steps:
