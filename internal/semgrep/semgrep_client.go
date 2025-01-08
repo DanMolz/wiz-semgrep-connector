@@ -62,6 +62,56 @@ type Rule struct {
 	OWASP              []string `json:"owasp_names"`
 }
 
+func FetchRepositoryFindings(cfg config.Config, repositoryName string) (SemgrepFindings, error) {
+	client := &http.Client{}
+	var repoFindings SemgrepFindings
+	page := 0
+
+	for {
+		// Construct the paginated URL
+		semgrepURL := fmt.Sprintf(semgrepAPIURL, cfg.SEMGREP_DEPLOYMENT, strconv.Itoa(page)) + "&repos=" + cfg.TARGET_REPO
+		req, err := http.NewRequest("GET", semgrepURL, nil)
+		if err != nil {
+			return SemgrepFindings{}, fmt.Errorf("creating request: %w", err)
+		}
+
+		req.Header.Add("Authorization", "Bearer "+cfg.SEMGREP_API_TOKEN)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return SemgrepFindings{}, fmt.Errorf("performing request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return SemgrepFindings{}, fmt.Errorf("failed to fetch findings: %s", string(body))
+		}
+
+		var pageFindings SemgrepFindings
+		if err := json.NewDecoder(resp.Body).Decode(&pageFindings); err != nil {
+			return SemgrepFindings{}, fmt.Errorf("decoding response: %w", err)
+		}
+		log.Printf("Fetched %d findings from URL %s", len(pageFindings.Findings), semgrepURL)
+
+		// Filter findings for the given repository
+		for _, finding := range pageFindings.Findings {
+			if finding.Repository.Name == repositoryName {
+				repoFindings.Findings = append(repoFindings.Findings, finding)
+			}
+		}
+
+		// Check if there are more pages
+		if len(pageFindings.Findings) < 100 {
+			break
+		}
+
+		page++
+	}
+
+	return repoFindings, nil
+}
+
 func FetchAllFindings(cfg config.Config) (SemgrepFindings, error) {
 	client := &http.Client{}
 	var allFindings SemgrepFindings
