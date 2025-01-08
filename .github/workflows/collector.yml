@@ -11,7 +11,7 @@ on:
 name: Semgrep Collector for Wiz
 jobs:
   collector:
-    name: collector/ci
+    name: collector
     runs-on: ubuntu-20.04
     env:
       MODE: agent
@@ -24,4 +24,4 @@ jobs:
       image: danielmoloney/wiz-semgrep-connector
     steps:
     - uses: actions/checkout@v4
-    - run: wiz-semgrep-connector
+    - run: ./wiz-semgrep-connector
