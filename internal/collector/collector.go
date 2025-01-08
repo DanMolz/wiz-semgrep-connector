@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DanMolz/wiz-semgrep-connector/config"
+	"github.com/DanMolz/wiz-semgrep-connector/internal/config"
 	"github.com/DanMolz/wiz-semgrep-connector/internal/semgrep"
 	"github.com/DanMolz/wiz-semgrep-connector/internal/utils"
 	"github.com/DanMolz/wiz-semgrep-connector/internal/wiz"
@@ -59,16 +59,20 @@ func StartCollector(ctx context.Context, cfg config.Config) {
 	}
 
 	log.Printf("Starting collector in %s mode", mode)
-
-	if strings.ToLower(mode) == "agent" {
+	switch strings.ToLower(mode) {
+	case "agent":
 		// Run once in agent mode
 		log.Println("Running in agent mode. Starting a single findings collection...")
 		collectFindingsOnce(ctx, cfg, wizClient, errChan)
-	} else {
+
+	case "scheduled":
 		// Run on a schedule
 		log.Println("Running in schedule mode. Starting periodic findings collection...")
 		utils.RandomDelay(30)
 		collectFindingsPeriodically(ctx, cfg, wizClient, errChan)
+
+	default:
+		log.Fatalf("Invalid mode: %s", mode)
 	}
 }
 

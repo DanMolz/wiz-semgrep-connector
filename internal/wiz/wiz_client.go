@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DanMolz/wiz-semgrep-connector/config"
+	"github.com/DanMolz/wiz-semgrep-connector/internal/config"
 	"github.com/machinebox/graphql"
 )
 

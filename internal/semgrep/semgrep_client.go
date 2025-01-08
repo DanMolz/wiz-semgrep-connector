@@ -10,7 +10,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/DanMolz/wiz-semgrep-connector/config"
+	"github.com/DanMolz/wiz-semgrep-connector/internal/config"
 )
 
 const semgrepAPIURL = "https://semgrep.dev/api/v1/deployments/%s/findings?issue_type=sast&page=%s"
