@@ -25,4 +25,3 @@ jobs:
       image: danielmoloney/wiz-semgrep-connector
     steps:
     - uses: actions/checkout@v4
-    - run: ./wiz-semgrep-connector
