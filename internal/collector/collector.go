@@ -239,8 +239,8 @@ func transformFindings(cfg config.Config, wizCloudResources wiz.WizCloudResource
 		wizFindings.DataSources = append(wizFindings.DataSources, dataSource)
 	}
 
-	log.Printf("Unsupported CWEs: %d findings are not supported by Wiz.", unsupportedCWE)
-	log.Printf("Semgrep Findings: %d findings will be uploaded.", len(wizFindings.DataSources))
+	log.Printf("Unsupported Findings: %d findings are not supported by Wiz.", unsupportedCWE)
+	log.Printf("Supported Findings: %d findings will be uploaded.", len(wizFindings.DataSources))
 	return wizFindings, nil
 }
 
