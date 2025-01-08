@@ -8,7 +8,7 @@ on:
   schedule:
   # random HH:MM to avoid a load spike on GitHub Actions at 00:00
   - cron: 19 20 * * *
-name: Wiz/Semgrep Collector
+name: Semgrep Collector for Wiz
 jobs:
   collector:
     name: collector/ci
@@ -24,4 +24,4 @@ jobs:
       image: danielmoloney/wiz-semgrep-connector
     steps:
     - uses: actions/checkout@v4
-    - run: collector ci
+    - run: wiz-semgrep-connector
