@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -361,7 +360,7 @@ func ReadWizCloudResources(fileName string) (WizCloudResources, error) {
 	defer file.Close()
 
 	// Read the file content
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return resources, fmt.Errorf("unable to read file %s: %w", fileName, err)
 	}

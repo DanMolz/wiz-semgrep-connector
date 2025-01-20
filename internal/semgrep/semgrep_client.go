@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -13,7 +12,7 @@ import (
 	"github.com/DanMolz/wiz-semgrep-connector/internal/config"
 )
 
-const semgrepAPIURL = "https://semgrep.dev/api/v1/deployments/%s/findings?issue_type=sast&page=%s"
+const semgrepAPIURL = "https://semgrep.dev/api/v1/deployments/%s/findings?issue_type=sast&status=open&page=%s"
 
 type SemgrepFindings struct {
 	Findings []Finding `json:"findings"`
@@ -169,7 +168,7 @@ func ReadSemgrepFindings(fileName string) (SemgrepFindings, error) {
 	defer file.Close()
 
 	// Read the file content
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return findings, fmt.Errorf("unable to read file %s: %w", fileName, err)
 	}
