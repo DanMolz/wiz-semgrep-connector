@@ -1,3 +1,6 @@
+# DEPRECIATION NOTICE
+This connector has now been depreciated with the release of native Semgrep and [Wiz Integration](https://semgrep.dev/docs/semgrep-appsec-platform/wiz).
+
 # Wiz Semgrep Connector
 
 ## Overview
