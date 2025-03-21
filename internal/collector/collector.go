@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -288,7 +289,7 @@ func buildDataSource(cfg config.Config, cloudPlatform, providerID string, findin
 				WebAppVulnerabilityFindings: []wiz.WebAppVulnerabilityFindings{
 					{
 						SastFinding: wiz.SastFinding{
-							CommitHash:  "",
+							CommitHash:  extractCommitHash(finding),
 							Filename:    finding.Location.FilePath,
 							LineNumbers: fmt.Sprintf("%d-%d", finding.Location.Line, finding.Location.Column),
 						},
@@ -297,7 +298,7 @@ func buildDataSource(cfg config.Config, cloudPlatform, providerID string, findin
 						DetailedName:        splitRuleName(finding.Rule.Name),
 						Severity:            utils.CapitalizeFirstChar(finding.Severity),
 						ExternalFindingLink: generateSemgrepFindingURL(cfg, finding),
-						Source:              "Semgrep",
+						Source:              "Semgrep OSS Engine",
 						Remediation:         fmt.Sprintf("Source Code Remediation: %s", finding.LineOfCodeURL),
 						Description: fmt.Sprintf("[Line Of Code](%s)\r\n\r\nRule Confidence: %s\r\n\r\nDescription: %s",
 							finding.LineOfCodeURL,
@@ -316,10 +317,40 @@ func generateSemgrepFindingURL(config config.Config, finding semgrep.Finding) st
 }
 
 func getCloudPlatformAndProviderId(finding semgrep.Finding) (string, string) {
+	// GitHub
 	if strings.Contains(finding.Repository.URL, "github.com") {
-		return "GitHub", fmt.Sprintf("github.com##%s##%s", finding.Repository.Name, strings.Split(finding.Ref, "refs/heads/")[1])
+		parts := strings.Split(finding.Ref, "refs/heads/")
+		if len(parts) > 1 {
+			return "GitHub", fmt.Sprintf("github.com##%s##%s", finding.Repository.Name, parts[1])
+		}
+		return "GitHub", fmt.Sprintf("github.com##%s##%s", finding.Repository.Name, finding.Ref)
 	}
-	return "GitLab", fmt.Sprintf("gitlab.com##%s##%s", finding.Repository.Name, strings.Split(finding.Ref, "refs/heads/")[1])
+
+	// GitLab
+	if strings.Contains(finding.Repository.URL, "gitlab.com") {
+		parts := strings.Split(finding.Ref, "refs/heads/")
+		if len(parts) > 1 {
+			return "GitLab", fmt.Sprintf("gitlab.com##%s##%s", finding.Repository.Name, parts[1])
+		}
+		return "GitLab", fmt.Sprintf("github.com##%s##%s", finding.Repository.Name, finding.Ref)
+	}
+	// None
+	return "", ""
+}
+
+func extractCommitHash(finding semgrep.Finding) string {
+	// GitHub
+	if strings.Contains(finding.Repository.URL, "github.com") {
+		// Regex to match a 40-character SHA1 hash in the URL
+		re := regexp.MustCompile(`github\.com/.+?/blob/([a-f0-9]{40})/`)
+		matches := re.FindStringSubmatch(finding.LineOfCodeURL)
+
+		if len(matches) > 1 {
+			return matches[1]
+		}
+	}
+
+	return ""
 }
 
 func splitCWEName(input string) string {
