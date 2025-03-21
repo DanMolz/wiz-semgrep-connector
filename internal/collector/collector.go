@@ -298,7 +298,7 @@ func buildDataSource(cfg config.Config, cloudPlatform, providerID string, findin
 						DetailedName:        splitRuleName(finding.Rule.Name),
 						Severity:            utils.CapitalizeFirstChar(finding.Severity),
 						ExternalFindingLink: generateSemgrepFindingURL(cfg, finding),
-						Source:              "Semgrep OSS Engine",
+						Source:              "Semgrep",
 						Remediation:         fmt.Sprintf("Source Code Remediation: %s", finding.LineOfCodeURL),
 						Description: fmt.Sprintf("[Line Of Code](%s)\r\n\r\nRule Confidence: %s\r\n\r\nDescription: %s",
 							finding.LineOfCodeURL,
